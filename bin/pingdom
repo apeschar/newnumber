@@ -1,0 +1,43 @@
+#!/usr/bin/env python2
+
+from ConfigParser import SafeConfigParser
+from StringIO import StringIO
+
+import pingdomlib
+import phonenumbers
+
+if __name__ == '__main__':
+    config = SafeConfigParser()
+
+    with open('newnumber.ini') as f:
+        ini = StringIO("[_]\n" + f.read())
+        config.readfp(ini)
+
+    number   = config.get('_',      'number')
+    email    = config.get('pingdom', 'email')
+    password = config.get('pingdom', 'password')
+    api_key  = config.get('pingdom', 'api_key')
+
+    number_info = phonenumbers.parse('+' + number)
+
+    pingdom = pingdomlib.Pingdom(email, password, api_key)
+
+    def get_contact():
+        for contact in pingdom.getContacts():
+            if contact.email == email:
+                return contact
+        raise Exception("Contact not found")
+
+    def check_number():
+        n = contact.cellphone.replace('-', '')
+        return n == number
+
+    contact = get_contact()
+
+    if not check_number():
+        contact.modify(countrycode=number_info.country_code,
+                       countryiso=phonenumbers.region_code_for_number(number_info),
+                       cellphone=number_info.national_number)
+
+        contact = get_contact()
+        assert check_number(), "Failed to update number"

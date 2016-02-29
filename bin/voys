@@ -1,0 +1,98 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use v5.10;
+
+use WWW::Mechanize;
+use Config::Tiny;
+
+my $config = Config::Tiny->new;
+$config = $config->read('newnumber.ini', 'utf8');
+
+my $number = $config->{_}->{number};
+my $username = $config->{voys}->{username};
+my $password = $config->{voys}->{password};
+
+my $mech = WWW::Mechanize->new();
+
+if($config->{voys}->{debug}) {
+    $mech->add_handler("request_send", sub { shift->dump; return });
+    $mech->add_handler("response_done", sub { shift->dump; return });
+}
+
+# Log in
+$mech->get('https://freedom.voys.nl/');
+
+$mech->submit_form(
+    with_fields => {
+        username => $username,
+        password => $password,
+    }
+);
+
+$mech->content() =~ m{href="/client/([0-9]+)/user/"}
+    or die "Log in failed or required string missing";
+
+my $client_id = $1;
+
+# Check if any of the destinations match
+my $value;
+my $added = 0;
+
+find_number: {
+    $value = get_destination_value();
+
+    die "Number added, but not in list (???)" if $added and not $value;
+
+    unless ($value) {
+        add_number();
+        $added = 1;
+        $mech->get('/dashboard/');
+        goto find_number;
+    }
+
+    my $form = $mech->current_form;
+    $form->value('destination' => $value);
+    $mech->post($mech->uri, {$form->form, 'availability-button' => ''});
+
+    die "Failed to save accessibility"
+        unless $mech->content =~ /Your accessibility has been saved/;
+}
+
+sub get_destination_input {
+    my $form = $mech->current_form();
+    return $form->find_input('destination');
+}
+
+sub get_destination_value {
+    my $dest = get_destination_input();
+    my @values = $dest->possible_values;
+    my @names = $dest->value_names;
+
+    @values > 0
+        or die "Destination list is empty";
+
+    my $value;
+
+    for my $i (1 .. $#values) {
+        return $values[$i] if $names[$i] =~ m{^\+\Q$number\E\/};
+    }
+}
+
+sub add_number {
+    $mech->follow_link(text => 'Add fixed destination');
+    $mech->submit_form(
+        with_fields => {
+            phonenumber => "+$number",
+        }
+    );
+}
+
+# Check that the intended number is selected
+{
+    $mech->get('/dashboard/');
+    my $dest = get_destination_input();
+    die "Setting the destination seems to have failed"
+        if ($dest->value ne get_destination_value());
+}

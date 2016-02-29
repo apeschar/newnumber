@@ -1,0 +1,15 @@
+number      = 15551234
+
+[voys]
+username    = user@example.com
+password    = abcd
+
+[twilio]
+account_sid = ACxxxx
+auth_token  = xxxx
+number_sid  = PNxxxx
+
+[pingdom]
+email       = user@example.com
+password    = abcd
+api_key     = abcd

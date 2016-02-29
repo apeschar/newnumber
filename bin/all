@@ -1,0 +1,19 @@
+#!/bin/bash
+
+set -u
+
+for script in "$(dirname "$0")/"*; do
+    basename="${script##.*/}"
+
+    if [[ $basename = all ]]; then
+        continue
+    fi
+
+    echo -n "$basename: " >&2
+
+    if "$script"; then
+        echo "ok" >&2
+    else
+        echo "fail" >&2
+    fi
+done
